@@ -28,11 +28,21 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
+Com [uv](https://docs.astral.sh/uv/): `uv run streamlit run app.py`.
+
+## Testes
+
+```bash
+pip install pytest      # ou: uv sync
+pytest                  # ou: uv run pytest
+```
+
 ## Interface
 
 A **barra lateral** guarda os parâmetros globais: partícula (elétron, próton, nêutron ou
-personalizada), carga q (com botão para inverter o sinal), velocidade v e campo B. Cada vetor pode ser dado por
-**módulo + ângulos** (θ a partir de +z e azimute no plano xy) ou por **componentes**. O campo aceita **tesla (T)**
+personalizada, com a carga digitada em coulombs), carga q (com botão para inverter o sinal), velocidade v e campo B.
+Cada vetor pode ser dado por **módulo + ângulos** (θ a partir de +z e azimute no plano xy) ou por **componentes**.
+Todo ângulo tem uma barra e uma caixa de texto sincronizadas: arraste ou digite o valor exato. O campo aceita **tesla (T)**
 ou **gauss (G)**; a troca converte o valor digitado, e internamente tudo é calculado em SI. Números aceitam
 notação científica (`1e-3`) e vírgula decimal; entradas inválidas geram mensagens claras.
 
@@ -51,11 +61,15 @@ campo_magnetico/
 ├── physics.py          # F = q v×B, ângulo, unidades, validação de texto
 ├── plots.py            # todas as figuras Plotly
 ├── lab_b.py            # lógica do módulo "Descobrindo B"
+├── tests/              # testes pytest de physics.py e lab_b.py
+├── pyproject.toml      # metadados e dependências (uv)
 ├── requirements.txt
 └── README.md
 ```
 
 `physics.py` e `lab_b.py` não importam Streamlit nem Plotly; só `app.py` e `plots.py` tocam a interface e os gráficos.
+
+A explicação detalhada de cada módulo e função (o que faz, como e por quê) está em [DOCUMENTACAO.md](DOCUMENTACAO.md).
 
 ## Limitações do modelo
 

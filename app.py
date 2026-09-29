@@ -27,6 +27,9 @@ DEFAULT_B_TESLA = 1.0e-3
 DEFAULT_PHI_MARKER = 60.0
 DEFAULT_PROBE_SPEED = "1e6"
 DEFAULT_PARTICLE = "Próton"
+DEFAULT_CHARGE = f"{ph.ELEMENTARY_CHARGE:g}"  # C
+CHARGE_HELP = ("Em coulombs; aceita 1.6e-19 ou 1,6×10^-19. Use sinal negativo para carga negativa. "
+               "Referência: e = 1,602×10⁻¹⁹ C.")
 
 
 # --------------------------------------------------------------------------- #
@@ -104,7 +107,60 @@ def read_number(label: str, key: str, default: str, *, strictly_positive: bool =
     return value
 
 
-FIELD_TEXT_KEYS = ("B_mag", "B_x", "B_y", "B_z", "est_mag")  # campos de texto expressos na unidade do campo
+ANGLE_STEP = 0.5  # passo da barra (°); o texto aceita qualquer valor
+
+
+def _snap_to_slider(value: float, lo: float, hi: float) -> float:
+    """Arredonda para o passo da barra e limita à faixa."""
+    return min(hi, max(lo, round(value / ANGLE_STEP) * ANGLE_STEP))
+
+
+def _angle_from_slider(key: str) -> None:
+    """Callback: a barra mudou; copia o valor para o texto."""
+    value = float(st.session_state[f"{key}_sl"])
+    st.session_state[key] = value
+    st.session_state[f"{key}_txt"] = f"{value:g}"
+    st.session_state.pop(f"{key}_err", None)
+
+
+def _angle_from_text(key: str, lo: float, hi: float) -> None:
+    """Callback: o texto mudou; se válido, move a barra (senão guarda o erro para exibir)."""
+    text = str(st.session_state[f"{key}_txt"]).replace("°", "")
+    try:
+        value = ph.parse_number(text)
+        if not lo <= value <= hi:
+            raise ValueError(f"o ângulo deve estar entre {lo:g}° e {hi:g}°.")
+    except ValueError as err:
+        st.session_state[f"{key}_err"] = str(err)
+        return
+    st.session_state.pop(f"{key}_err", None)
+    st.session_state[key] = value
+    st.session_state[f"{key}_sl"] = _snap_to_slider(value, lo, hi)
+
+
+def angle_input(label: str, key: str, lo: float, hi: float, default: float) -> float:
+    """Ângulo editável pela barra ou digitado; os dois ficam sincronizados. Devolve graus.
+
+    O valor oficial fica em st.session_state[key]; a barra e o texto são só visões dele.
+    A barra anda em passos de ANGLE_STEP, mas o texto aceita qualquer valor (ex.: 37.25).
+    """
+    init_state(key, float(default))
+    value = float(st.session_state[key])
+    # Widgets não desenhados numa execução perdem o estado; recria a partir do valor oficial.
+    init_state(f"{key}_sl", _snap_to_slider(value, lo, hi))
+    init_state(f"{key}_txt", f"{value:g}")
+    col_slider, col_text = st.columns([3, 1], vertical_alignment="bottom")
+    col_slider.slider(label, float(lo), float(hi), step=ANGLE_STEP, key=f"{key}_sl",
+                      on_change=_angle_from_slider, args=(key,))
+    col_text.text_input(f"{label}, digitado", key=f"{key}_txt", label_visibility="collapsed",
+                        on_change=_angle_from_text, args=(key, lo, hi),
+                        help="Digite o ângulo em graus (aceita vírgula decimal).")
+    if f"{key}_err" in st.session_state:
+        st.error(f"**{label}**: {st.session_state[f'{key}_err']}")
+    return value
+
+
+FIELD_TEXT_KEYS =("B_mag", "B_x", "B_y", "B_z", "est_mag")  # campos de texto expressos na unidade do campo
 
 
 def convert_field_texts() -> None:
@@ -134,10 +190,8 @@ def _vector_input(tag: str, title: str, unit: str, scale_to_si: float, mode: str
     st.markdown(f"**{title}**")
     if mode == MODE_POLAR:
         magnitude = read_number(f"|{tag}| ({unit})", f"{tag}_mag", mag_default, minimum=0.0)
-        init_state(f"{tag}_theta", theta_default)
-        init_state(f"{tag}_az", 0.0)
-        theta = st.slider(f"θ de {tag}: ângulo com +z (°)", 0.0, 180.0, step=0.5, key=f"{tag}_theta")
-        azimuth = st.slider(f"Azimute de {tag}: ângulo no plano xy (°)", 0.0, 360.0, step=0.5, key=f"{tag}_az")
+        theta = angle_input(f"θ de {tag}: ângulo com +z (°)", f"{tag}_theta", 0.0, 180.0, theta_default)
+        azimuth = angle_input(f"Azimute de {tag}: ângulo no plano xy (°)", f"{tag}_az", 0.0, 360.0, 0.0)
         return ph.spherical_to_cartesian(magnitude * scale_to_si, theta, azimuth)
     columns = st.columns(3)
     components = []
@@ -156,9 +210,7 @@ def sidebar_parameters() -> Params:
         name = st.selectbox("Preset", [*ph.PARTICLES, CUSTOM_PARTICLE],
                             index=list(ph.PARTICLES).index(DEFAULT_PARTICLE), key="particle")
         if name == CUSTOM_PARTICLE:
-            q_in_e = st.number_input("Carga q (em múltiplos de e)", value=1.0, step=1.0, format="%.4g",
-                                     key="custom_q_e", help="e = 1,602×10⁻¹⁹ C. Use valores negativos para carga negativa.")
-            charge = q_in_e * ph.ELEMENTARY_CHARGE
+            charge = read_number("Carga q (C)", "custom_q", DEFAULT_CHARGE, help_text=CHARGE_HELP)
         else:
             charge = ph.PARTICLES[name].charge
             st.caption(f"q = {charge:+.4e} C")
@@ -192,7 +244,7 @@ def render_tab_a(p: Params) -> None:
     force = p.force
     phi = p.phi
     f_cross = float(np.linalg.norm(force))
-    f_formula = abs(p.q) * p.v_mag * p.b_mag * math.sin(math.radians(phi)) if math.isfinite(phi) else 0.0
+    f_formula = ph.force_magnitude(p.q, p.v_mag, p.b_mag, phi) if math.isfinite(phi) else 0.0
 
     cols = st.columns(4)
     for col, label, value in zip(cols, ("Fx", "Fy", "Fz", "|F|"), (*force, f_cross)):
@@ -276,10 +328,9 @@ def render_tab_b(p: Params) -> None:
 def render_tab_c(p: Params) -> None:
     st.subheader("Gráfico F × φ")
     st.latex(r"F = |q|\,v\,B\,\sin\varphi \qquad F_{\max} = |q|\,v\,B\ \ (\varphi = 90^\circ)")
-    init_state("phi_marker", DEFAULT_PHI_MARKER)
-    phi = st.slider("Ângulo φ entre v e B (°)", 0.0, 180.0, step=0.5, key="phi_marker")
-    f_max = abs(p.q) * p.v_mag * p.b_mag
-    f_phi = f_max * math.sin(math.radians(phi))
+    phi = angle_input("Ângulo φ entre v e B (°)", "phi_marker", 0.0, 180.0, DEFAULT_PHI_MARKER)
+    f_max = ph.force_magnitude(p.q, p.v_mag, p.b_mag, 90.0)
+    f_phi = ph.force_magnitude(p.q, p.v_mag, p.b_mag, phi)
     cols = st.columns(3)
     cols[0].metric("|F| em φ do controle", sci(f_phi, "N"))
     cols[1].metric("|F| máxima (φ = 90°)", sci(f_max, "N"))
@@ -302,6 +353,21 @@ def reset_lab() -> None:
     st.session_state["lab_revealed"] = False
 
 
+def set_teacher_field() -> None:
+    """Callback do modo professor: define o campo oculto e apaga o módulo digitado."""
+    try:
+        field = lab_b.manual_field(ph.parse_number(st.session_state["teacher_mag"]),
+                                   st.session_state["teacher_theta"], st.session_state["teacher_az"])
+    except ValueError as err:
+        st.session_state["teacher_err"] = str(err)
+        return
+    st.session_state.pop("teacher_err", None)
+    st.session_state["lab_field"] = field
+    st.session_state["lab_attempts"] = []
+    st.session_state["lab_revealed"] = False
+    st.session_state["teacher_mag"] = ""
+
+
 def render_tab_d(p: Params) -> None:
     st.subheader("Descobrindo B")
     st.latex(r"B = \frac{F}{|q|\,v\,\sin\varphi}")
@@ -317,31 +383,21 @@ def render_tab_d(p: Params) -> None:
     top = st.columns([1, 2])
     top[0].button("Novo campo", on_click=reset_lab, type="primary")
     with top[1].expander("Modo professor: definir o campo oculto manualmente"):
-        with st.form("teacher_form", clear_on_submit=True):
-            mag_text = st.text_input("|B| (T)", type="password", help="Oculto na tela.")
-            t_theta = st.slider("θ de B (°)", 0.0, 180.0, 90.0, step=0.5)
-            t_az = st.slider("Azimute de B (°)", 0.0, 360.0, 0.0, step=0.5)
-            submitted = st.form_submit_button("Definir campo oculto")
-        if submitted:
-            try:
-                st.session_state["lab_field"] = lab_b.manual_field(ph.parse_number(mag_text), t_theta, t_az)
-                st.session_state["lab_attempts"] = []
-                st.session_state["lab_revealed"] = False
-                st.rerun()
-            except ValueError as err:
-                st.error(str(err))
+        st.text_input("|B| (T)", type="password", key="teacher_mag", help="Oculto na tela.")
+        angle_input("θ de B (°)", "teacher_theta", 0.0, 180.0, 90.0)
+        angle_input("Azimute de B (°)", "teacher_az", 0.0, 360.0, 0.0)
+        st.button("Definir campo oculto", on_click=set_teacher_field)
+        if "teacher_err" in st.session_state:
+            st.error(st.session_state["teacher_err"])
 
     st.markdown("##### 1. Carga de prova e lançamento")
-    c1, c2, c3, c4 = st.columns(4)
+    c1, c2 = st.columns(2)
     with c1:
-        q_in_e = st.number_input("Carga de prova q (× e)", value=1.0, step=1.0, format="%.4g", key="probe_q")
+        charge = read_number("Carga de prova q (C)", "probe_q", DEFAULT_CHARGE, help_text=CHARGE_HELP)
+        theta = angle_input("θ do lançamento (°)", "probe_theta", 0.0, 180.0, 90.0)
     with c2:
         speed = read_number("Velocidade v (m/s)", "probe_v", DEFAULT_PROBE_SPEED, minimum=0.0)
-    with c3:
-        theta = st.slider("θ do lançamento (°)", 0.0, 180.0, 90.0, step=0.5, key="probe_theta")
-    with c4:
-        azimuth = st.slider("Azimute do lançamento (°)", 0.0, 360.0, 0.0, step=0.5, key="probe_az")
-    charge = q_in_e * ph.ELEMENTARY_CHARGE
+        azimuth = angle_input("Azimute do lançamento (°)", "probe_az", 0.0, 360.0, 0.0)
     if charge == 0.0 or speed == 0.0:
         st.warning("Com q = 0 ou v = 0 a força é sempre nula: nenhuma medição é possível.")
     if st.button("Lançar carga de prova"):
@@ -382,9 +438,9 @@ def render_tab_d(p: Params) -> None:
         est_mag = read_number(f"|B| estimado ({unit})", "est_mag", f"{ph.from_tesla(1.0, unit):g}",
                               strictly_positive=True)
     with e2:
-        est_theta = st.slider("θ estimado (°)", 0.0, 180.0, 90.0, step=0.5, key="est_theta")
+        est_theta = angle_input("θ estimado (°)", "est_theta", 0.0, 180.0, 90.0)
     with e3:
-        est_az = st.slider("Azimute estimado (°)", 0.0, 360.0, 0.0, step=0.5, key="est_az")
+        est_az = angle_input("Azimute estimado (°)", "est_az", 0.0, 360.0, 0.0)
     if st.button("Revelar"):
         st.session_state["lab_revealed"] = True
         st.session_state["lab_estimate"] = (ph.to_tesla(est_mag, unit), est_theta, est_az)

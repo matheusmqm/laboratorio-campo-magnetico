@@ -111,7 +111,7 @@ def attempts_to_rows(attempts: list[Attempt]) -> list[dict[str, str | float | in
             "#": a.index,
             "θ lançamento (°)": a.theta_deg,
             "azimute (°)": a.azimuth_deg,
-            "q / e": a.charge / ph.ELEMENTARY_CHARGE,
+            "q (C)": f"{a.charge:.4e}",
             "v (m/s)": f"{a.speed:.3e}",
             "|F| (N)": f"{a.force_magnitude:.4e}",
             "Fx (N)": f"{a.force[0]:.3e}",

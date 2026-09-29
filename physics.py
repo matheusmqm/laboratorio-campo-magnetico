@@ -124,10 +124,11 @@ def field_from_force(force_mag: float, charge: float, v_mag: float, phi_deg: flo
     Raises:
         ValueError: se q = 0, v = 0 ou sen φ = 0 (a definição não se aplica).
     """
-    denominator = abs(charge) * v_mag * math.sin(math.radians(phi_deg))
-    if denominator <= 0.0:
+    sin_phi = math.sin(math.radians(phi_deg))
+    # sen(180°) dá ~1e-16, não 0: usa a mesma tolerância de is_parallel.
+    if charge == 0.0 or v_mag <= 0.0 or sin_phi <= PARALLEL_TOLERANCE:
         raise ValueError("B não pode ser medido com q = 0, v = 0 ou v paralelo a B (sen φ = 0).")
-    return force_mag / denominator
+    return force_mag / (abs(charge) * v_mag * sin_phi)
 
 
 def force_zero_reasons(charge: float, v: Vector, b_field: Vector) -> list[str]:
