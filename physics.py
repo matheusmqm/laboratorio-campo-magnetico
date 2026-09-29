@@ -43,30 +43,9 @@ PARTICLES: dict[str, Particle] = {
     for p in (
         Particle("Elétron", -ELEMENTARY_CHARGE),
         Particle("Próton", +ELEMENTARY_CHARGE),
-        Particle("Partícula alfa", +2.0 * ELEMENTARY_CHARGE),
         Particle("Nêutron", 0.0),
     )
 }
-
-
-@dataclass(frozen=True)
-class FieldReference:
-    """Ordem de grandeza de um campo magnético real."""
-
-    name: str
-    value_tesla: float
-    note: str
-
-
-# Tabela 28-1 do Halliday: ordem de grandeza de alguns campos magnéticos
-TYPICAL_FIELDS: tuple[FieldReference, ...] = (
-    FieldReference("Na superfície de uma estrela de nêutrons", 1.0e8, "10⁸ T"),
-    FieldReference("Perto de um grande eletroímã", 1.5, "1,5 T"),
-    FieldReference("Perto de um ímã pequeno", 1.0e-2, "10⁻² T"),
-    FieldReference("Na superfície da Terra", 1.0e-4, "10⁻⁴ T (100 μT ou 1 G)"),
-    FieldReference("No espaço sideral", 1.0e-10, "10⁻¹⁰ T"),
-    FieldReference("Em uma sala magneticamente blindada", 1.0e-14, "10⁻¹⁴ T"),
-)
 
 
 # --------------------------------------------------------------------------- #

@@ -1,6 +1,6 @@
 """Laboratório Virtual de Campo Magnético: medindo B a partir da força magnética.
 
-Interface Streamlit (sidebar + abas A a F). Execução: `streamlit run app.py`.
+Interface Streamlit (sidebar + abas A a D). Execução: `streamlit run app.py`.
 """
 from __future__ import annotations
 
@@ -123,13 +123,6 @@ def convert_field_texts() -> None:
             converted = ph.from_tesla(ph.to_tesla(value, old), new)
             st.session_state[state_key] = f"{converted:.6g}" if isinstance(raw, str) else converted
     st.session_state["_unit_prev"] = new
-
-
-def apply_field_preset(value_tesla: float) -> None:
-    """Callback: aplica um campo típico ao B da sidebar (módulo na unidade escolhida)."""
-    unit = st.session_state.get("unit", "T")
-    st.session_state["vec_mode"] = MODE_POLAR
-    st.session_state["B_mag"] = f"{ph.from_tesla(value_tesla, unit):.6g}"
 
 
 # --------------------------------------------------------------------------- #
@@ -414,39 +407,6 @@ def render_tab_d(p: Params) -> None:
 
 
 # --------------------------------------------------------------------------- #
-# Aba E: linhas de campo e ordens de grandeza
-# --------------------------------------------------------------------------- #
-def render_tab_e(p: Params) -> None:
-    st.subheader("Linhas de campo e ordens de grandeza")
-    st.latex(r"\text{Dipolo:}\quad \vec B(\vec r)=\frac{\mu_0}{4\pi r^3}\left[3(\vec m\cdot\hat r)\hat r-\vec m\right]")
-    kind = st.selectbox("Configuração de campo", ["Campo uniforme", "Ímã de barra (dipolo magnético)"], key="field_kind")
-    if kind == "Campo uniforme":
-        show_figure(plots.uniform_field_figure(p.b), "fig_field_uniform")
-        st.write("Linhas paralelas e igualmente espaçadas: **B é o mesmo em todo o espaço**. "
-                 "A figura mostra a projeção do B da barra lateral no plano x–z.")
-    else:
-        show_figure(plots.dipole_field_figure(), "fig_field_dipole")
-        st.write("As linhas **saem pelo polo norte e entram pelo polo sul**. A tangente à linha dá a direção de B e "
-                 "as linhas ficam mais densas onde B é mais intenso (perto dos polos). "
-                 "O ímã de barra é representado por um dipolo magnético.")
-
-    st.markdown("##### Ordem de grandeza de alguns campos magnéticos (Tabela 28-1)")
-    st.caption("Clique em **Aplicar** para usar o valor como |B| na barra lateral (a direção é mantida).")
-    header = st.columns([2.2, 1.6, 1.6, 1.2])
-    for col, text in zip(header, ("Fonte", "B (T)", "B (G)", "")):
-        col.markdown(f"**{text}**")
-    for i, ref in enumerate(ph.TYPICAL_FIELDS):
-        row = st.columns([2.2, 1.6, 1.6, 1.2])
-        row[0].write(f"{ref.name}  \n:gray[{ref.note}]")
-        row[1].write(f"{ref.value_tesla:.3g}")
-        row[2].write(f"{ph.from_tesla(ref.value_tesla, 'G'):.3g}")
-        row[3].button("Aplicar", key=f"apply_field_{i}", on_click=apply_field_preset, args=(ref.value_tesla,))
-    st.metric("B atual (barra lateral)", sci(p.b_mag, "T"), delta=f"= {ph.from_tesla(p.b_mag, 'G'):.4e} G",
-              delta_color="off")
-    st.caption("1 T = 1 N/(C·m/s) = 1 N/(A·m) = 10⁴ G.")
-
-
-# --------------------------------------------------------------------------- #
 # Programa principal
 # --------------------------------------------------------------------------- #
 def main() -> None:
@@ -454,9 +414,8 @@ def main() -> None:
     st.title(TITLE)
     st.caption("Halliday, seção 28-1: o campo magnético **B** é definido pela força que ele exerce sobre uma carga de prova em movimento.")
     params = sidebar_parameters()
-    tabs = st.tabs(["A · Força vetorial", "B · Vetores 3D", "C · F × φ", "D · Descobrindo B",
-                    "E · Linhas de campo"])
-    for tab, render in zip(tabs, (render_tab_a, render_tab_b, render_tab_c, render_tab_d, render_tab_e)):
+    tabs = st.tabs(["A · Força vetorial", "B · Vetores 3D", "C · F × φ", "D · Descobrindo B"])
+    for tab, render in zip(tabs, (render_tab_a, render_tab_b, render_tab_c, render_tab_d)):
         with tab:
             render(params)
 

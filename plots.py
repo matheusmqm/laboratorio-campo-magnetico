@@ -17,8 +17,6 @@ COLOR_B = "#2ca02c"
 COLOR_F = "#d62728"
 COLOR_ARC = "#ff7f0e"
 COLOR_NEUTRAL = "#8c8c8c"
-COLOR_NORTH = "#d62728"
-COLOR_SOUTH = "#1f77b4"
 GRID_COLOR = "rgba(128,128,128,0.30)"
 TRANSPARENT = "rgba(0,0,0,0)"
 
@@ -28,11 +26,6 @@ ARC_RADIUS = 0.45
 ARC_POINTS = 40
 SCENE_HALF_RANGE = 1.3
 ANGLE_CURVE_POINTS = 361
-DIPOLE_MAGNET_RADIUS = 0.6  # região "dentro do ímã" (linhas cortadas)
-DIPOLE_WINDOW = 3.0
-DIPOLE_FLUX_STEP_LENGTH = 4.5  # L_k = 4.5 / k  (fluxo igualmente espaçado)
-DIPOLE_N_LINES = 7
-DIPOLE_CURVE_POINTS = 400
 
 
 def _base_layout(fig: go.Figure, height: int, title: str | None = None) -> go.Figure:
@@ -184,102 +177,3 @@ def probe_history_figure(directions: np.ndarray, forces: np.ndarray) -> go.Figur
     fig.update_layout(scene=_scene(1.4), showlegend=False)
     return fig
 
-
-# --------------------------------------------------------------------------- #
-# Aba E: linhas de campo 2D
-# --------------------------------------------------------------------------- #
-def _arrow_angle_deg(dx: float, dy: float) -> float:
-    """Ângulo (sentido horário a partir de 'para cima') do vetor (dx, dy) na tela."""
-    return math.degrees(math.atan2(dx, dy))
-
-
-def _add_field_line(fig: go.Figure, xs: np.ndarray, ys: np.ndarray, color: str, n_arrows: int = 1) -> None:
-    """Linha de campo (com NaN separando trechos) e setas orientadas ao longo dela."""
-    fig.add_trace(go.Scatter(x=xs, y=ys, mode="lines", line=dict(color=color, width=2), hoverinfo="skip",
-                             showlegend=False))
-    valid = np.flatnonzero(np.isfinite(xs) & np.isfinite(ys))
-    if len(valid) < 3:
-        return
-    runs = np.split(valid, np.flatnonzero(np.diff(valid) > 1) + 1)
-    run = max(runs, key=len)
-    if len(run) < 3:
-        return
-    picks = np.linspace(0, len(run) - 1, n_arrows + 2)[1:-1].round().astype(int)
-    ax, ay, ang = [], [], []
-    for p in picks:
-        i = run[min(max(p, 1), len(run) - 2)]
-        ax.append(xs[i]); ay.append(ys[i])
-        ang.append(_arrow_angle_deg(xs[i + 1] - xs[i - 1], ys[i + 1] - ys[i - 1]))
-    fig.add_trace(go.Scatter(x=ax, y=ay, mode="markers", hoverinfo="skip", showlegend=False,
-                             marker=dict(symbol="arrow", size=13, angle=ang, angleref="up", color=color)))
-
-
-def _field_axes(fig: go.Figure, half: float) -> None:
-    fig.update_xaxes(range=[-half, half], showgrid=False, zeroline=False, visible=False)
-    fig.update_yaxes(range=[-half, half], showgrid=False, zeroline=False, visible=False, scaleanchor="x", scaleratio=1)
-
-
-def uniform_field_figure(b_field: np.ndarray, n_lines: int = 9, half: float = 1.0) -> go.Figure:
-    """Campo uniforme projetado no plano x–z (x horizontal, z vertical)."""
-    fig = go.Figure()
-    bx, by, bz = (float(c) for c in b_field)
-    in_plane = math.hypot(bx, bz)
-    total = float(np.linalg.norm(b_field))
-    if total == 0.0:
-        fig.add_annotation(text="B = 0: não há linhas de campo", showarrow=False, font=dict(size=16))
-    elif in_plane <= 1e-6 * total:
-        # B perpendicular ao plano: y aponta PARA DENTRO da página (x→direita, z→cima)
-        grid = np.linspace(-0.8 * half, 0.8 * half, 5)
-        gx, gz = np.meshgrid(grid, grid)
-        into_page = by > 0
-        fig.add_trace(go.Scatter(x=gx.ravel(), y=gz.ravel(), mode="markers", hoverinfo="skip",
-                                 marker=dict(symbol="x" if into_page else "circle-dot", size=14, color=COLOR_B,
-                                             line=dict(width=2, color=COLOR_B))))
-        fig.add_annotation(text=("B entra na página (+y)" if into_page else "B sai da página (−y)"),
-                           x=0, y=-1.05 * half, showarrow=False, yanchor="top")
-    else:
-        d = np.array([bx, bz]) / in_plane
-        normal = np.array([-d[1], d[0]])
-        length = 2.0 * half
-        for s in np.linspace(-0.9 * half, 0.9 * half, n_lines):
-            pts = np.array([s * normal + u * d for u in np.linspace(-length, length, 41)])
-            _add_field_line(fig, pts[:, 0], pts[:, 1], COLOR_B, n_arrows=2)
-        if abs(by) > 1e-6 * total:
-            fig.add_annotation(text=f"componente ⊥ ao plano: By = {by:.3e} T (não desenhada)", x=0,
-                               y=-1.05 * half, showarrow=False, yanchor="top")
-    _base_layout(fig, 560)
-    fig.update_layout(showlegend=False)
-    _field_axes(fig, half)
-    return fig
-
-
-def dipole_field_figure() -> go.Figure:
-    """Ímã de barra como dipolo magnético: linhas r = L sen²θ, com fluxo igualmente espaçado.
-
-    Como o fluxo entre linhas vizinhas é constante, a densidade de linhas é proporcional a |B|.
-    O sentido é o de θ crescente (saem pelo polo N, entram pelo polo S).
-    """
-    fig = go.Figure()
-    half = DIPOLE_WINDOW
-    theta = np.linspace(1e-3, math.pi - 1e-3, DIPOLE_CURVE_POINTS)
-    for k in range(1, DIPOLE_N_LINES + 1):
-        length = DIPOLE_FLUX_STEP_LENGTH / k
-        r = length * np.sin(theta) ** 2
-        for side in (+1.0, -1.0):
-            xs, zs = side * r * np.sin(theta), r * np.cos(theta)
-            hidden = (r < DIPOLE_MAGNET_RADIUS) | (np.abs(xs) > half) | (np.abs(zs) > half)
-            xs, zs = np.where(hidden, np.nan, xs), np.where(hidden, np.nan, zs)
-            _add_field_line(fig, xs, zs, COLOR_B, n_arrows=1)
-    # eixo do dipolo (ψ = 0): B aponta para +z acima e abaixo do ímã
-    for z0, z1 in ((DIPOLE_MAGNET_RADIUS, half), (-half, -DIPOLE_MAGNET_RADIUS)):
-        zs = np.linspace(z0, z1, 30)
-        _add_field_line(fig, np.zeros_like(zs), zs, COLOR_B, n_arrows=1)
-    body = dict(type="rect", x0=-0.18, x1=0.18, line=dict(width=1.5, color="white"))
-    fig.add_shape(**body, y0=0.0, y1=0.5, fillcolor=COLOR_NORTH)
-    fig.add_shape(**body, y0=-0.5, y1=0.0, fillcolor=COLOR_SOUTH)
-    fig.add_annotation(x=0, y=0.25, text="N", showarrow=False, font=dict(color="white", size=16))
-    fig.add_annotation(x=0, y=-0.25, text="S", showarrow=False, font=dict(color="white", size=16))
-    _base_layout(fig, 620)
-    fig.update_layout(showlegend=False)
-    _field_axes(fig, half)
-    return fig

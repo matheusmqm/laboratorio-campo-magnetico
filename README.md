@@ -10,8 +10,7 @@ F = q v × B        F = |q| v B sen φ        B = F / (|q| v sen φ)
 ```
 
 O conteúdo se limita à teoria do módulo 28-1: definição de B, força sobre carga em movimento, regra da mão
-direita, F ⊥ v e F ⊥ B, casos em que F = 0, conservação de |v| e da energia cinética, unidades (tesla e gauss),
-Tabela 28-1 e linhas de campo.
+direita, F ⊥ v e F ⊥ B, casos em que F = 0, conservação de |v| e da energia cinética, unidades (tesla e gauss).
 
 ## Instalação
 
@@ -31,7 +30,7 @@ streamlit run app.py
 
 ## Interface
 
-A **barra lateral** guarda os parâmetros globais: partícula (elétron, próton, partícula alfa, nêutron ou
+A **barra lateral** guarda os parâmetros globais: partícula (elétron, próton, nêutron ou
 personalizada), carga q (com botão para inverter o sinal), velocidade v e campo B. Cada vetor pode ser dado por
 **módulo + ângulos** (θ a partir de +z e azimute no plano xy) ou por **componentes**. O campo aceita **tesla (T)**
 ou **gauss (G)**; a troca converte o valor digitado, e internamente tudo é calculado em SI. Números aceitam
@@ -43,14 +42,13 @@ notação científica (`1e-3`) e vírgula decimal; entradas inválidas geram men
 | **B · Vetores 3D** | v, B e F em 3D com o arco de φ; F inverte ao trocar o sinal de q; legenda da regra da mão direita. |
 | **C · F × φ** | Curva \|F\| × φ (0° a 180°) com marcador móvel; F = 0 em 0° e 180°, máxima em 90°. |
 | **D · Descobrindo B** | Reproduz a definição operacional: um B oculto é sorteado (ou definido pelo professor); lance cargas de prova, meça só F, ache a direção de F = 0 (direção de B) e a de \|F\| máxima (\|B\| = F/(\|q\| v)); estime e clique em "Revelar". |
-| **E · Linhas de campo** | Campo uniforme e ímã de barra como dipolo (linhas saem do polo N e entram no S; densidade de linhas indica a intensidade); Tabela 28-1 com botão "Aplicar" ao B da barra lateral. |
 
 ## Estrutura
 
 ```
 campo_magnetico/
 ├── app.py              # interface Streamlit (sidebar + abas)
-├── physics.py          # F = q v×B, ângulo, unidades, Tabela 28-1, validação de texto
+├── physics.py          # F = q v×B, ângulo, unidades, validação de texto
 ├── plots.py            # todas as figuras Plotly
 ├── lab_b.py            # lógica do módulo "Descobrindo B"
 ├── requirements.txt
@@ -61,8 +59,7 @@ campo_magnetico/
 
 ## Limitações do modelo
 
-- Campo magnético **uniforme** nas abas A a D; campos não uniformes (dipolo) aparecem só como visualização na aba E.
-- O ímã de barra é um **dipolo ideal**; as linhas dentro da região do ímã não são desenhadas.
+- Campo magnético **uniforme** em todas as abas.
 - Só a força magnética é considerada (sem campo elétrico) e não se calcula a trajetória da partícula
   (movimento circular e helicoidal pertencem a outros módulos do capítulo).
 
